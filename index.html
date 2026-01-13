@@ -270,8 +270,12 @@ let DATA={}, currentCategory=null;
 let instances=[], active=null;
 let isDragging=false, dragStarted=false, prevMouse={x:0,y:0};
 const dragThreshold=2;
-let overlayActive = false; // <-- flag pour désactiver la scène principale
-let hovered = null; // instance actuellement survolée
+let overlayActive = false;
+let hovered = null;
+
+/* ===== Camera original position ===== */
+let cameraInitialPosition = new THREE.Vector3();
+let cameraInitialTarget = new THREE.Vector3();
 
 /* ===== Cache ===== */
 const boxCache = {};
@@ -303,7 +307,6 @@ const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100)
 camera.position.set(0,0.4,0.8);
 
 const controls = new OrbitControls(camera, renderer.domElement);
-// Desktop: rotation désactivée, mobile: activée
 controls.enableRotate = window.innerWidth <= 900 ? true : false;
 controls.enableZoom = true;
 controls.enablePan = false;
@@ -473,20 +476,28 @@ function loadCategory(cat) {
 
       const baseX = (i - (items.length - 1)/2) * size.z * 1.2;
       mesh.position.x = baseX;
+      mesh.position.z = 0;
       mesh.rotation.y = Math.PI / 2;
 
       instances.push({
         mesh,
         baseX,
-        initialRotY: mesh.rotation.y,
         targetX: baseX,
+        baseZ: 0,
+        targetZ: 0,
+        initialRotY: mesh.rotation.y,
         data: item,
-        isToggled: false
+        isToggled: false,
+        initialPosition: mesh.position.clone()
       });
 
       scene.add(mesh);
       loadedCount++;
-      if(loadedCount === items.length) zoomToFitAll();
+      if(loadedCount === items.length) {
+        zoomToFitAll();
+        cameraInitialPosition.copy(camera.position);
+        cameraInitialTarget.copy(controls.target);
+      }
     });
   });
 }
@@ -501,7 +512,7 @@ function zoomToFitAll() {
   const maxDim = Math.max(size.x, size.y, size.z);
   const fov = camera.fov * (Math.PI / 180);
   let distance = maxDim / (2 * Math.tan(fov / 2)) * 1.30;
-  if(innerWidth < 600) distance *= 1.1; // zoom un peu plus proche sur mobile
+  if(innerWidth < 600) distance *= 1.1;
   camera.position.set(center.x, center.y + size.y / 2, center.z + distance);
   camera.lookAt(center);
   controls.target.copy(center);
@@ -550,7 +561,6 @@ window.addEventListener("mousemove", e => {
   mouse.y = -(e.clientY / innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
 
-  // === Drag ===
   if(isDragging && active){
     const dx = e.clientX - prevMouse.x;
     const dy = e.clientY - prevMouse.y;
@@ -560,7 +570,7 @@ window.addEventListener("mousemove", e => {
     prevMouse = {x:e.clientX, y:e.clientY};
   }
 
-  // === Hover ===
+  // Hover
   const allHits = [];
   instances.forEach(inst => {
     if(inst.isToggled) return;
@@ -616,7 +626,7 @@ window.addEventListener("touchend", e => {
   isDragging = false;
 });
 
-/* ===== Apparence & hover ===== */
+/* ===== Appearance & hover ===== */
 function updateAppearance(inst){
   inst.mesh.traverse(c=>{
     if(!c.isMesh) return;
@@ -644,18 +654,28 @@ function setGray(inst, gray=true){
   updateAppearance(inst);
 }
 
-/* ===== Toggle / Reset ===== */
+/* ===== Toggle / Reset avec recul horizontal + profondeur ===== */
 function toggle(inst){
   inst.isToggled = true;
   inst.mesh.rotation.set(0, inst.initialRotY - Math.PI/2, 0);
-  const w = new THREE.Box3().setFromObject(inst.mesh).getSize(new THREE.Vector3()).x;
 
-  instances.forEach(o=>{
-    o.targetX = o === inst ? o.baseX : o.baseX + (o.baseX < inst.baseX ? -1 : 1) * w * 0.6;
-    if(o!==inst) setGray(o,true);
-    else setGray(o,false);
+  const w = new THREE.Box3().setFromObject(inst.mesh).getSize(new THREE.Vector3()).x;
+  const spacing = w * 0.6;
+  const zOffset = 0.15;
+
+  instances.forEach(o => {
+    if(o === inst){
+      o.targetX = o.baseX;
+      o.targetZ = 0;
+      setGray(o,false);
+    } else {
+      o.targetX = o.baseX + (o.baseX < inst.baseX ? -1 : 1) * spacing;
+      o.targetZ = -zOffset;
+      setGray(o,true);
+    }
   });
 
+  active = inst;
   openBtn.classList.add("visible");
   centerCameraOn(inst);
   animateCameraTo(inst);
@@ -664,17 +684,29 @@ function toggle(inst){
 function reset(inst){
   inst.isToggled = false;
   inst.mesh.rotation.set(0, inst.initialRotY, 0);
-  instances.forEach(o=>{
+
+  instances.forEach(o => {
     o.targetX = o.baseX;
+    o.targetZ = 0;
+    o.mesh.position.copy(o.initialPosition);
     setGray(o,false);
   });
+
+  active = null;
   openBtn.classList.remove("visible");
+
+  camera.position.copy(cameraInitialPosition);
+  controls.target.copy(cameraInitialTarget);
+  controls.update();
 }
 
 /* ===== Animate main ===== */
 function animate(){
   requestAnimationFrame(animate);
-  instances.forEach(i => i.mesh.position.x += (i.targetX - i.mesh.position.x) * 0.1);
+  instances.forEach(i => {
+    i.mesh.position.x += (i.targetX - i.mesh.position.x) * 0.1;
+    i.mesh.position.z += (i.targetZ - i.mesh.position.z) * 0.1;
+  });
   renderer.render(scene,camera);
 }
 animate();
@@ -684,7 +716,7 @@ let oRenderer,oScene,oCamera,oModel,oAnim=false;
 
 openBtn.onclick = () => {
   if(!active) return;
-  overlayActive = true; // <-- bloque la scène principale
+  overlayActive = true;
   detailTitle.textContent = active.data.title;
   detailDesc.textContent = active.data.description;
   overlay.style.display = "flex";
@@ -737,7 +769,7 @@ function loopOverlay(){
 }
 
 closeBtn.onclick = () => {
-  overlayActive = false; // <-- réactive la scène principale
+  overlayActive = false;
   oAnim = false;
   overlay.style.display = "none";
   overlayCanvas.innerHTML="";
