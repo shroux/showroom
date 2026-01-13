@@ -1,0 +1,57 @@
+{
+  "PS2": [
+    {
+      "box": "DVD",
+      "title": "Mortal Kombat",
+      "texturePath": "/dvdps2wii_case(1)/textures/mortalkombat_texture.png",
+      "description": "Mortal Kombat: Armageddon brags a roster of 62 characters and sees the return of classic ones from the original Mortal Kombat, such as Reptile, Shang Tsung and Goro. The enhanced Konquest mode (story/adventure mode) improves over the preceding versions, but has a shorter length. There are now 64 arenas (including revamped versions of classic environments) which each have their own tweaks, such as the ridiculous amount of stage fatalities (fatalities are a fancy way of killing your opponent, including classic techniques such as the \"spine-rip\" or \"arm-break\")."
+    },
+     {
+      "box": "DVD",
+      "title": "Cel Damage : Overdrive",
+      "texturePath": "/dvdps2wii_case(1)/textures/celdamage_texture.png",
+      "description": ".A vehicular combat game set in a cartoon universe with 12 different environments. Wield a massive chainsaw, giant axe or one of 34 other wild weapons. There are 3 gameplay modes: Smack Attack (smack your opponents to gain points), Gate Relay (Pass the Checkpoints 5 times before your enemies do), and Flag Rally (CTF). 6 playable characters with 4 unlockable guest stars. For 1 to 4 players."
+    }
+  ],
+  "PC": [
+    {
+      "box": "DVD",
+      "title": "Brothers in Arms : Road to Hill 30",
+      "texturePath": "/dvdps2wii_case(1)/textures/brothersinarms_rth30_texture.png",
+      "description": "Brothers in Arms, one of the few games to truly be based on actual events, places you in the shoes of real-life World War II Sergeant Matt Baker, tasked with commanding your squad through a week's worth of actual battles that Baker's 101st Airborne platoon faced. Combining the cinematic action of games such as Medal of Honor and Call of Duty with the strategic command of Full Spectrum Warrior, you must command your troops to use actual army doctrine to find, fix, flank, and finish the enemy while actually participating in the battle yourself."
+    },
+    {
+      "box": "DVD",
+      "title": "Renfield : Bring Your Own Blood",
+      "texturePath": "/dvdps2wii_case(1)/textures/renfield_texture.png",
+      "description": "Brothers in Arms, one of the few games to truly be based on actual events, places you in the shoes of real-life World War II Sergeant Matt Baker, tasked with commanding your squad through a week's worth of actual battles that Baker's 101st Airborne platoon faced. Combining the cinematic action of games such as Medal of Honor and Call of Duty with the strategic command of Full Spectrum Warrior, you must command your troops to use actual army doctrine to find, fix, flank, and finish the enemy while actually participating in the battle yourself.",
+      "steam_id": 2354600
+    },
+    {
+      "box": "DVD",
+      "title": "Brothers in Arms : Road to Hill 30",
+      "texturePath": "/dvdps2wii_case(1)/textures/brothersinarms_rth30_texture.png",
+      "description": "Brothers in Arms, one of the few games to truly be based on actual events, places you in the shoes of real-life World War II Sergeant Matt Baker, tasked with commanding your squad through a week's worth of actual battles that Baker's 101st Airborne platoon faced. Combining the cinematic action of games such as Medal of Honor and Call of Duty with the strategic command of Full Spectrum Warrior, you must command your troops to use actual army doctrine to find, fix, flank, and finish the enemy while actually participating in the battle yourself."
+    },
+    {
+      "box": "DVD",
+      "title": "Renfield : Bring Your Own Blood",
+      "texturePath": "/dvdps2wii_case(1)/textures/renfield_texture.png",
+      "description": "Brothers in Arms, one of the few games to truly be based on actual events, places you in the shoes of real-life World War II Sergeant Matt Baker, tasked with commanding your squad through a week's worth of actual battles that Baker's 101st Airborne platoon faced. Combining the cinematic action of games such as Medal of Honor and Call of Duty with the strategic command of Full Spectrum Warrior, you must command your troops to use actual army doctrine to find, fix, flank, and finish the enemy while actually participating in the battle yourself.",
+      "steam_id": 2354600
+    },
+    {
+      "box": "DVD",
+      "title": "Brothers in Arms : Road to Hill 30",
+      "texturePath": "/dvdps2wii_case(1)/textures/brothersinarms_rth30_texture.png",
+      "description": "Brothers in Arms, one of the few games to truly be based on actual events, places you in the shoes of real-life World War II Sergeant Matt Baker, tasked with commanding your squad through a week's worth of actual battles that Baker's 101st Airborne platoon faced. Combining the cinematic action of games such as Medal of Honor and Call of Duty with the strategic command of Full Spectrum Warrior, you must command your troops to use actual army doctrine to find, fix, flank, and finish the enemy while actually participating in the battle yourself."
+    },
+    {
+      "box": "DVD",
+      "title": "Renfield : Bring Your Own Blood",
+      "texturePath": "/dvdps2wii_case(1)/textures/renfield_texture.png",
+      "description": "Brothers in Arms, one of the few games to truly be based on actual events, places you in the shoes of real-life World War II Sergeant Matt Baker, tasked with commanding your squad through a week's worth of actual battles that Baker's 101st Airborne platoon faced. Combining the cinematic action of games such as Medal of Honor and Call of Duty with the strategic command of Full Spectrum Warrior, you must command your troops to use actual army doctrine to find, fix, flank, and finish the enemy while actually participating in the battle yourself.",
+      "steam_id": 2354600
+    }
+  ]
+}
