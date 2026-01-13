@@ -191,6 +191,33 @@ canvas { display:block; }
   #overlayText h2 { font-size: 1.6rem; }
   #overlayText p { font-size: 0.95rem; }
 }
+
+@media(max-width: 600px) {
+  #sideMenu {
+    width: 90%;
+    padding: 100px 20px;
+  }
+  .menuItem {
+    font-size: 18px;
+    padding: 18px 0;
+  }
+  #openBtn {
+    padding: 12px 36px;
+    font-size: 1rem;
+  }
+  #overlayContent {
+    flex-direction: column-reverse;
+    max-height: 95%;
+  }
+  #overlayText, #overlayCanvas {
+    width: 100%;
+    height: 50%;
+    padding: 20px;
+  }
+  #overlayText h2 { font-size: 1.5rem; }
+  #overlayText p { font-size: 0.95rem; }
+  #loaderBar { width: 80%; }
+}
 </style>
 </head>
 
@@ -276,7 +303,12 @@ const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100)
 camera.position.set(0,0.4,0.8);
 
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableRotate = false;
+// Desktop: rotation désactivée, mobile: activée
+controls.enableRotate = window.innerWidth <= 900 ? true : false;
+controls.enableZoom = true;
+controls.enablePan = false;
+controls.rotateSpeed = 0.5;
+controls.zoomSpeed = 0.8;
 
 scene.add(new THREE.AmbientLight(0xffffff,1));
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.8);
@@ -468,7 +500,8 @@ function zoomToFitAll() {
   const center = box.getCenter(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z);
   const fov = camera.fov * (Math.PI / 180);
-  const distance = maxDim / (2 * Math.tan(fov / 2)) * 1.30;
+  let distance = maxDim / (2 * Math.tan(fov / 2)) * 1.30;
+  if(innerWidth < 600) distance *= 1.1; // zoom un peu plus proche sur mobile
   camera.position.set(center.x, center.y + size.y / 2, center.z + distance);
   camera.lookAt(center);
   controls.target.copy(center);
@@ -479,8 +512,9 @@ function zoomToFitAll() {
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
+/* === Mouse Events === */
 window.addEventListener("click", e => {
-  if(overlayActive) return; // <-- ignore si overlay ouvert
+  if(overlayActive) return;
   if(dragStarted){ dragStarted=false; return; }
 
   mouse.x = (e.clientX / innerWidth) * 2 - 1;
@@ -555,6 +589,33 @@ window.addEventListener("mouseup", e => {
   isDragging = false;
 });
 
+/* === Touch Events for Mobile === */
+window.addEventListener("touchstart", e => {
+  if(overlayActive) return;
+  if(!active) return;
+  isDragging = true;
+  dragStarted = false;
+  const t = e.touches[0];
+  prevMouse = {x: t.clientX, y: t.clientY};
+});
+
+window.addEventListener("touchmove", e => {
+  if(overlayActive) return;
+  if(!isDragging || !active) return;
+  const t = e.touches[0];
+  const dx = t.clientX - prevMouse.x;
+  const dy = t.clientY - prevMouse.y;
+  if(Math.abs(dx)+Math.abs(dy) > dragThreshold) dragStarted = true;
+  active.mesh.rotation.y += dx*0.01;
+  active.mesh.rotation.x += dy*0.01;
+  prevMouse = {x: t.clientX, y: t.clientY};
+});
+
+window.addEventListener("touchend", e => {
+  if(overlayActive) return;
+  isDragging = false;
+});
+
 /* ===== Apparence & hover ===== */
 function updateAppearance(inst){
   inst.mesh.traverse(c=>{
@@ -620,7 +681,6 @@ animate();
 
 /* ===== Overlay ===== */
 let oRenderer,oScene,oCamera,oModel,oAnim=false;
-
 
 openBtn.onclick = () => {
   if(!active) return;
