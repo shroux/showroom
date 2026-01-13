@@ -16,6 +16,39 @@
 body { margin:0; overflow:hidden; font-family:system-ui; background:#000; }
 canvas { display:block; }
 
+/* ===== Loader ===== */
+#loader {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  color: #fff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  z-index: 9999;
+}
+#loaderContent {
+  text-align: center;
+}
+#loaderContent p {
+  font-size: 1.2rem;
+  margin-bottom: 15px;
+}
+#loaderBar {
+  width: 250px;
+  height: 12px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 6px;
+  overflow: hidden;
+}
+#loaderProgress {
+  height: 100%;
+  width: 0;
+  background: #fff;
+  transition: width 0.2s;
+}
+
 /* Burger */
 #burger { position:fixed; top:20px; left:20px; width:30px; cursor:pointer; z-index:6; }
 #burger span { display:block; height:3px; background:#fff; margin:5px 0; }
@@ -163,6 +196,14 @@ canvas { display:block; }
 
 <body>
 
+<!-- ===== Loader ===== -->
+<div id="loader">
+  <div id="loaderContent">
+    <p id="loaderText">Chargement... 0%</p>
+    <div id="loaderBar"><div id="loaderProgress"></div></div>
+  </div>
+</div>
+
 <div id="burger"><span></span><span></span><span></span></div>
 <div id="sideMenu"></div>
 <button id="openBtn">Ouvrir</button>
@@ -183,6 +224,19 @@ import * as THREE from "three";
 import { OrbitControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
 import { Reflector } from "https://unpkg.com/three@0.160.0/examples/jsm/objects/Reflector.js";
+
+/* ===== Loader variables ===== */
+let resourcesToLoad = 0;
+let resourcesLoaded = 0;
+
+function updateLoader() {
+  const progress = resourcesToLoad ? Math.floor((resourcesLoaded / resourcesToLoad) * 100) : 0;
+  document.getElementById("loaderProgress").style.width = progress + "%";
+  document.getElementById("loaderText").textContent = `Chargement... ${progress}%`;
+  if(resourcesLoaded >= resourcesToLoad) {
+    document.getElementById("loader").style.display = "none";
+  }
+}
 
 /* ===== Globals ===== */
 let DATA={}, currentCategory=null;
@@ -321,18 +375,31 @@ function clearInstances() {
 function getBoxModel(boxType, callback) {
   if(boxCache[boxType]){
     callback(boxCache[boxType].clone());
+    resourcesLoaded++;
+    updateLoader();
   } else {
+    resourcesToLoad++;
     let path = boxType === "DVD" ? "./dvdps2wii_case.glb" : "./cdps1.glb";
     gltfLoader.load(path, gltf => {
       boxCache[boxType] = gltf.scene;
       callback(gltf.scene.clone());
+      resourcesLoaded++;
+      updateLoader();
     });
   }
 }
 
 function getTexture(path) {
-  if(textureCache[path]) return textureCache[path];
-  const tex = textureLoader.load(path);
+  if(textureCache[path]) {
+    resourcesLoaded++;
+    updateLoader();
+    return textureCache[path];
+  }
+  resourcesToLoad++;
+  const tex = textureLoader.load(path, () => {
+    resourcesLoaded++;
+    updateLoader();
+  });
   tex.flipY = false;
   tex.colorSpace = THREE.SRGBColorSpace;
   textureCache[path] = tex;
@@ -553,6 +620,7 @@ animate();
 
 /* ===== Overlay ===== */
 let oRenderer,oScene,oCamera,oModel,oAnim=false;
+
 
 openBtn.onclick = () => {
   if(!active) return;
