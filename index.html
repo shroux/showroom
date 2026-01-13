@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Showroom 3D JSON + Drag + Box Types</title>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<style>
+body { margin:0; overflow:hidden; font-family:system-ui; background:#000; }
+canvas { display:block; }
+
+/* Burger */
+#burger { position:fixed; top:20px; left:20px; width:30px; cursor:pointer; z-index:6; }
+#burger span { display:block; height:3px; background:#fff; margin:5px 0; }
+
+/* Menu */
+#sideMenu {
+  position:fixed; inset:0 auto 0 0;
+  width:260px; background:rgba(0,0,0,.95);
+  padding:80px 30px;
+  transform:translateX(-100%);
+  transition:.3s; z-index:5;
+}
+#sideMenu.open { transform:translateX(0); }
+.menuItem {
+  display:block; width:100%;
+  background:none; border:none;
+  color:#fff; font-size:16px;
+  padding:12px 0; text-align:left;
+  cursor:pointer; opacity:.8;
+}
+.menuItem:hover { opacity:1; }
+
+/* Open */
+#openBtn {
+  position:fixed; top:20px; left:50%;
+  transform:translateX(-50%);
+  padding:10px 28px;
+  border-radius:30px; border:none;
+  background:#fff; cursor:pointer;
+  opacity:0; pointer-events:none;
+  transition:.3s; z-index:6;
+}
+#openBtn.visible { opacity:1; pointer-events:auto; }
+
+/* Overlay */
+#overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(8px);
+  display: none;
+  z-index: 10;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+#overlayContent {
+  display: flex;
+  flex-direction: row;
+  max-width: 1200px;
+  width: 100%;
+  max-height: 80%;
+  background: rgba(20,20,20,0.95);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(0,0,0,0.7);
+  margin: auto;
+}
+
+#overlayText {
+  width: 45%;
+  padding: 40px;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+#overlayText h2 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+#overlayText p {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #ccc;
+}
+
+#overlayCanvas {
+  width: 55%;
+  flex-grow: 1;
+  min-height: 300px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Quitter */
+#closeBtn {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  padding: 10px 18px;
+  border-radius: 20px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  transition: background 0.2s;
+}
+#closeBtn:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+/* Steam Button */
+#steamBtn {
+  padding: 14px 28px;
+  border: none;
+  border-radius: 12px;
+  background: #1b2838;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s;
+}
+#steamBtn:hover {
+  background: #2a475e;
+  transform: translateY(-2px);
+}
+
+/* Responsive */
+@media(max-width: 900px) {
+  #overlayContent {
+    flex-direction: column-reverse;
+    height: 90%;
+  }
+  #overlayText, #overlayCanvas {
+    width: 100%;
+    height: 50%;
+    padding: 30px;
+  }
+  #overlayText h2 { font-size: 1.6rem; }
+  #overlayText p { font-size: 0.95rem; }
+}
+</style>
+</head>
+
+<body>
+
+<div id="burger"><span></span><span></span><span></span></div>
+<div id="sideMenu"></div>
+<button id="openBtn">Ouvrir</button>
+
+<div id="overlay">
+  <button id="closeBtn">Quitter</button>
+  <div id="overlayContent">
+    <div id="overlayText">
+      <h2 id="detailTitle"></h2>
+      <p id="detailDesc"></p>
+    </div>
+    <div id="overlayCanvas"></div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+import { GLTFLoader } from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
+import { Reflector } from "https://unpkg.com/three@0.160.0/examples/jsm/objects/Reflector.js";
+
+/* ===== Globals ===== */
+let DATA={}, currentCategory=null;
+let instances=[], active=null;
+let isDragging=false, dragStarted=false, prevMouse={x:0,y:0};
+const dragThreshold=2;
+let overlayActive = false; // <-- flag pour désactiver la scène principale
+let hovered = null; // instance actuellement survolée
+
+/* ===== Cache ===== */
+const boxCache = {};
+const textureCache = {};
+
+/* ===== Elements HTML ===== */
+const burger = document.getElementById("burger");
+const sideMenu = document.getElementById("sideMenu");
+const openBtn = document.getElementById("openBtn");
+const overlay = document.getElementById("overlay");
+const closeBtn = document.getElementById("closeBtn");
+const overlayCanvas = document.getElementById("overlayCanvas");
+const detailTitle = document.getElementById("detailTitle");
+const detailDesc = document.getElementById("detailDesc");
+
+/* ===== Burger menu ===== */
+burger.onclick = () => sideMenu.classList.toggle("open");
+
+/* ===== Three.js main scene ===== */
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(0,0.4,0.8);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableRotate = false;
+
+scene.add(new THREE.AmbientLight(0xffffff,1));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.8);
+dirLight.position.set(5,10,7);
+scene.add(dirLight);
+
+const reflector = new Reflector(new THREE.PlaneGeometry(10,10), {color:0x555555});
+reflector.rotation.x = -Math.PI/2;
+scene.add(reflector);
+
+const gltfLoader = new GLTFLoader();
+const textureLoader = new THREE.TextureLoader();
+
+/* ===== Load JSON ===== */
+fetch("./data.json")
+  .then(r => r.json())
+  .then(json => {
+    DATA = json;
+    buildMenu();
+    loadCategory(Object.keys(DATA)[0]);
+  });
+
+/* ===== Build menu ===== */
+function buildMenu() {
+  sideMenu.innerHTML = "";
+  let totalGames = 0;
+
+  Object.keys(DATA).forEach(cat => {
+    const items = DATA[cat];
+    totalGames += items.length;
+
+    const b = document.createElement("button");
+    b.className = "menuItem";
+    b.textContent = `${cat} (${items.length})`;
+    b.onclick = () => loadCategory(cat);
+    sideMenu.appendChild(b);
+  });
+
+  const totalEl = document.createElement("div");
+  totalEl.style.position = "absolute";
+  totalEl.style.bottom = "30px";
+  totalEl.style.left = "30px";
+  totalEl.style.color = "#fff";
+  totalEl.style.fontSize = "16px";
+  totalEl.textContent = `Total jeux : ${totalGames}`;
+  sideMenu.appendChild(totalEl);
+}
+
+/* ===== Camera helper ===== */
+function animateCameraTo(inst, duration = 0.5) {
+  const box = new THREE.Box3().setFromObject(inst.mesh);
+  const size = box.getSize(new THREE.Vector3());
+  const targetCenter = new THREE.Vector3(inst.targetX, box.getCenter(new THREE.Vector3()).y, box.getCenter(new THREE.Vector3()).z);
+  const targetPos = new THREE.Vector3(
+    targetCenter.x,
+    targetCenter.y + size.y / 2,
+    targetCenter.z + Math.max(size.x, size.y, size.z) / (2 * Math.tan(camera.fov * Math.PI / 360)) * 1.5
+  );
+
+  const startPos = camera.position.clone();
+  const startTarget = controls.target.clone();
+  let t = 0;
+
+  function updateCamera(dt){
+    t += dt / duration;
+    if(t >= 1) t = 1;
+    camera.position.lerpVectors(startPos, targetPos, t);
+    controls.target.lerpVectors(startTarget, targetCenter, t);
+    controls.update();
+    if(t < 1) requestAnimationFrame(updateCamera);
+  }
+  requestAnimationFrame(updateCamera);
+}
+
+function centerCameraOn(inst) {
+  const box = new THREE.Box3().setFromObject(inst.mesh);
+  const size = box.getSize(new THREE.Vector3());
+  const center = new THREE.Vector3(inst.targetX, box.getCenter(new THREE.Vector3()).y, box.getCenter(new THREE.Vector3()).z);
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const fov = camera.fov * (Math.PI / 180);
+  const distance = maxDim / (2 * Math.tan(fov / 2)) * 1.5;
+  camera.position.set(center.x, center.y + size.y / 2, center.z + distance);
+  controls.target.copy(center);
+  controls.update();
+}
+
+/* ===== Clear instances ===== */
+function clearInstances() {
+  instances.forEach(i => scene.remove(i.mesh));
+  instances = [];
+  active = null;
+  openBtn.classList.remove("visible");
+}
+
+/* ===== Helper functions ===== */
+function getBoxModel(boxType, callback) {
+  if(boxCache[boxType]){
+    callback(boxCache[boxType].clone());
+  } else {
+    let path = boxType === "DVD" ? "./dvdps2wii_case.glb" : "./cdps1.glb";
+    gltfLoader.load(path, gltf => {
+      boxCache[boxType] = gltf.scene;
+      callback(gltf.scene.clone());
+    });
+  }
+}
+
+function getTexture(path) {
+  if(textureCache[path]) return textureCache[path];
+  const tex = textureLoader.load(path);
+  tex.flipY = false;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  textureCache[path] = tex;
+  return tex;
+}
+
+/* ===== Load category ===== */
+function loadCategory(cat) {
+  sideMenu.classList.remove("open");
+  currentCategory = cat;
+  clearInstances();
+
+  const items = DATA[cat];
+  let loadedCount = 0;
+
+  items.forEach((item, i) => {
+    getBoxModel(item.box, original => {
+      let box = new THREE.Box3().setFromObject(original);
+      let size = box.getSize(new THREE.Vector3());
+      const targetSize = 0.2;
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const scale = targetSize / maxDim;
+      original.scale.setScalar(scale);
+
+      box = new THREE.Box3().setFromObject(original);
+      size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      original.position.sub(center);
+      original.position.y += size.y / 2;
+
+      const mesh = original.clone(true);
+      const tex = getTexture(item.texturePath);
+      mesh.traverse(c => {
+        if(c.isMesh){
+          c.material = c.material.clone();
+          if(c.material.map !== undefined) c.material.map = tex;
+        }
+      });
+
+      const baseX = (i - (items.length - 1)/2) * size.z * 1.2;
+      mesh.position.x = baseX;
+      mesh.rotation.y = Math.PI / 2;
+
+      instances.push({
+        mesh,
+        baseX,
+        initialRotY: mesh.rotation.y,
+        targetX: baseX,
+        data: item,
+        isToggled: false
+      });
+
+      scene.add(mesh);
+      loadedCount++;
+      if(loadedCount === items.length) zoomToFitAll();
+    });
+  });
+}
+
+/* ===== Zoom automatique ===== */
+function zoomToFitAll() {
+  if(instances.length === 0) return;
+  const box = new THREE.Box3();
+  instances.forEach(i => box.expandByObject(i.mesh));
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const fov = camera.fov * (Math.PI / 180);
+  const distance = maxDim / (2 * Math.tan(fov / 2)) * 1.30;
+  camera.position.set(center.x, center.y + size.y / 2, center.z + distance);
+  camera.lookAt(center);
+  controls.target.copy(center);
+  controls.update();
+}
+
+/* ===== Interaction & Drag ===== */
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+window.addEventListener("click", e => {
+  if(overlayActive) return; // <-- ignore si overlay ouvert
+  if(dragStarted){ dragStarted=false; return; }
+
+  mouse.x = (e.clientX / innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  const allIntersections = [];
+  instances.forEach(inst=>{
+    const hits = raycaster.intersectObject(inst.mesh, true);
+    hits.forEach(hit => allIntersections.push({inst, distance: hit.distance}));
+  });
+  if(allIntersections.length === 0) return;
+  allIntersections.sort((a,b) => a.distance - b.distance);
+  const closest = allIntersections[0].inst;
+
+  if(active && active!==closest) reset(active);
+  closest.isToggled ? reset(closest) : toggle(closest);
+  active = closest.isToggled ? closest : null;
+});
+
+window.addEventListener("mousedown", e => {
+  if(overlayActive) return;
+  if(!active) return;
+  isDragging = true;
+  dragStarted = false;
+  prevMouse = {x:e.clientX, y:e.clientY};
+});
+
+window.addEventListener("mousemove", e => {
+  if(overlayActive) return;
+
+  mouse.x = (e.clientX / innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  // === Drag ===
+  if(isDragging && active){
+    const dx = e.clientX - prevMouse.x;
+    const dy = e.clientY - prevMouse.y;
+    if(Math.abs(dx)+Math.abs(dy) > dragThreshold) dragStarted = true;
+    active.mesh.rotation.y += dx*0.01;
+    active.mesh.rotation.x += dy*0.01;
+    prevMouse = {x:e.clientX, y:e.clientY};
+  }
+
+  // === Hover ===
+  const allHits = [];
+  instances.forEach(inst => {
+    if(inst.isToggled) return;
+    const hits = raycaster.intersectObject(inst.mesh, true);
+    if(hits.length) allHits.push({inst, distance: hits[0].distance});
+  });
+
+  if(allHits.length > 0){
+    allHits.sort((a,b) => a.distance - b.distance);
+    const closest = allHits[0].inst;
+    if(hovered !== closest){
+      if(hovered) setHover(hovered,false);
+      setHover(closest,true);
+      hovered = closest;
+    }
+  } else {
+    if(hovered){
+      setHover(hovered,false);
+      hovered = null;
+    }
+  }
+});
+
+window.addEventListener("mouseup", e => {
+  if(overlayActive) return;
+  isDragging = false;
+});
+
+/* ===== Apparence & hover ===== */
+function updateAppearance(inst){
+  inst.mesh.traverse(c=>{
+    if(!c.isMesh) return;
+    if(!c.userData.originalMaterial) c.userData.originalMaterial = c.material;
+    let mat = c.userData.originalMaterial.clone();
+    if(inst.isDimmed && !inst.isHovered){
+      mat.color.multiplyScalar(0.1);
+      mat.emissive.multiplyScalar(0.1);
+    } else if(inst.isHovered){
+      mat.color.copy(c.userData.originalMaterial.color);
+      mat.color.offsetHSL(0,0,0.3);
+    }
+    c.material.dispose();
+    c.material = mat;
+  });
+}
+
+function setHover(inst,on){
+  inst.isHovered = on;
+  updateAppearance(inst);
+}
+
+function setGray(inst, gray=true){
+  inst.isDimmed = gray;
+  updateAppearance(inst);
+}
+
+/* ===== Toggle / Reset ===== */
+function toggle(inst){
+  inst.isToggled = true;
+  inst.mesh.rotation.set(0, inst.initialRotY - Math.PI/2, 0);
+  const w = new THREE.Box3().setFromObject(inst.mesh).getSize(new THREE.Vector3()).x;
+
+  instances.forEach(o=>{
+    o.targetX = o === inst ? o.baseX : o.baseX + (o.baseX < inst.baseX ? -1 : 1) * w * 0.6;
+    if(o!==inst) setGray(o,true);
+    else setGray(o,false);
+  });
+
+  openBtn.classList.add("visible");
+  centerCameraOn(inst);
+  animateCameraTo(inst);
+}
+
+function reset(inst){
+  inst.isToggled = false;
+  inst.mesh.rotation.set(0, inst.initialRotY, 0);
+  instances.forEach(o=>{
+    o.targetX = o.baseX;
+    setGray(o,false);
+  });
+  openBtn.classList.remove("visible");
+}
+
+/* ===== Animate main ===== */
+function animate(){
+  requestAnimationFrame(animate);
+  instances.forEach(i => i.mesh.position.x += (i.targetX - i.mesh.position.x) * 0.1);
+  renderer.render(scene,camera);
+}
+animate();
+
+/* ===== Overlay ===== */
+let oRenderer,oScene,oCamera,oModel,oAnim=false;
+
+openBtn.onclick = () => {
+  if(!active) return;
+  overlayActive = true; // <-- bloque la scène principale
+  detailTitle.textContent = active.data.title;
+  detailDesc.textContent = active.data.description;
+  overlay.style.display = "flex";
+
+  let existingBtn = document.getElementById("steamBtn");
+  if(existingBtn) existingBtn.remove();
+  if(currentCategory === "PC" && active.data.steam_id){
+    const steamBtn = document.createElement("button");
+    steamBtn.id = "steamBtn";
+    steamBtn.textContent = "Play on Steam";
+    document.getElementById("overlayText").appendChild(steamBtn);
+    steamBtn.onclick = () => window.location.href = `steam://run/${active.data.steam_id}`;
+  }
+
+  oScene = new THREE.Scene();
+  oCamera = new THREE.PerspectiveCamera(45, overlayCanvas.clientWidth/overlayCanvas.clientHeight, 0.1, 10);
+  oCamera.position.set(0,0,0.7);
+
+  oRenderer = new THREE.WebGLRenderer({alpha:true,antialias:true});
+  oRenderer.setSize(overlayCanvas.clientWidth, overlayCanvas.clientHeight);
+  overlayCanvas.innerHTML="";
+  overlayCanvas.appendChild(oRenderer.domElement);
+
+  oScene.add(new THREE.AmbientLight(0xffffff,1.2));
+  const l = new THREE.DirectionalLight(0xffffff,1.5);
+  l.position.set(3,5,4);
+  oScene.add(l);
+
+  oModel = active.mesh.clone(true);
+  oModel.rotation.set(0,0,0);
+  const box = new THREE.Box3().setFromObject(oModel);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  oModel.position.sub(center);
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const fov = oCamera.fov * (Math.PI / 180);
+  const distance = maxDim / (2 * Math.tan(fov / 2)) * 1.40;
+  oCamera.position.set(0,0,distance);
+  oScene.add(oModel);
+
+  oAnim = true;
+  loopOverlay();
+};
+
+function loopOverlay(){
+  if(!oAnim) return;
+  requestAnimationFrame(loopOverlay);
+  if(oModel) oModel.rotation.y += 0.005;
+  if(oRenderer && oCamera && oScene) oRenderer.render(oScene,oCamera);
+}
+
+closeBtn.onclick = () => {
+  overlayActive = false; // <-- réactive la scène principale
+  oAnim = false;
+  overlay.style.display = "none";
+  overlayCanvas.innerHTML="";
+};
+
+/* ===== Resize ===== */
+onresize = () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+
+  if(oCamera && oRenderer && overlayCanvas){
+    oCamera.aspect = overlayCanvas.clientWidth/overlayCanvas.clientHeight;
+    oCamera.updateProjectionMatrix();
+    oRenderer.setSize(overlayCanvas.clientWidth, overlayCanvas.clientHeight);
+  }
+
+  zoomToFitAll();
+};
+
+</script>
+
+</body>
+</html>
